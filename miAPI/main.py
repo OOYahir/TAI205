@@ -14,4 +14,4 @@ async def HolaMundo():
 async def Bienvenidos():
     return {"mensaje":"Bienvenidos a mi API con FASTAPI"}
 
-#python -m uvicorn main:app --reload
+#python -m uvicorn main:app --reload 
