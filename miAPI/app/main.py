@@ -1,5 +1,5 @@
 #1. Importaciones
-from fastapi import FastAPI
+from fastapi import FastAPI, status, HTTPException
 from typing import Optional
 import asyncio
 
@@ -13,9 +13,9 @@ app=FastAPI(
 
 #base de datos ficticia 
 usuarios=[
-    {"id":"1", "nombre":"Yahir", "edad":"21"},
-    {"id":"2", "nombre":"Diana", "edad":"20"},
-    {"id":"3", "nombre":"daniel", "edad":"20"},
+    {"id":1, "nombre":"Yahir", "edad":"21"},
+    {"id":2, "nombre":"Diana", "edad":"20"},
+    {"id":3, "nombre":"daniel", "edad":"20"},
 
 ]
 
@@ -36,7 +36,7 @@ async def promedio():
             "Calificacion":"7.5",
             "estatus":"200"
             }
-@app.get("/v1/usuario/{id}", tags=['Parametros']) 
+@app.get("/v1/parametroO/{id}", tags=['Parametros']) 
 async def consultaUno(id:int): 
     await asyncio.sleep(3) 
     return {
@@ -56,3 +56,56 @@ async def consultaOp(id:Optional[int]=None):
             return {"Aviso":"no se proporciono id"}
 
 #python -m uvicorn main:app --reload 
+
+#GET
+@app.get("/v1/usuarios/", tags=['CRUD HTTP']) 
+async def consultaT(): 
+    return{
+        "status":"200",
+        "total": len(usuarios),
+        "data": usuarios
+    }
+#POST   
+@app.post("/v1/usuarios/", tags=['CRUD HTTP']) 
+async def crea_usuario(usuario:dict):
+    for usr in usuarios:
+        if usr["id"] == usuario.get("id"):
+            raise HTTPException(
+                status_code=400,
+                detail="El id ya existe"
+            )
+    usuarios.append(usuario)
+    return{
+        "mensaje": "usuario agregado correctamente",
+        "status":"200",
+        "usuario":usuario
+    }
+
+@app.put("/v1/usuarios/{id}", tags=['CRUD HTTP'])
+async def actualizar_usuario(id:int, usuario:dict):
+    for index, usr in enumerate(usuarios):
+        if usr["id"] == id:
+            usuarios[index] = usuario
+            return {
+                "mensaje": "usuario actualizado correctamente",
+                "status":"200",
+                "usuario":usuario
+            }
+    raise HTTPException(
+        status_code=404,
+        detail="Usuario no encontrado"
+    )
+
+@app.delete("/v1/usuarios/{id}", tags=['CRUD HTTP'])
+async def eliminar_usuario(id:int):
+    for index, usr in enumerate(usuarios):
+        if usr["id"] == id:
+            del usuarios[index]
+            return {
+                "mensaje": "usuario eliminado correctamente",
+                "status":"200"
+            }
+    raise HTTPException(
+        status_code=404,
+        detail="Usuario no encontrado"
+    )
