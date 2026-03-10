@@ -1,11 +1,10 @@
-from fastapi import FastAPI, status, HTTPException
+
 from fastapi import FastAPI, status, HTTPException, Depends
-from typing import Optional
-import asyncio
-from pydantic import BaseModel,Field
+from datetime import date
+from pydantic import BaseModel, Field, model_validator
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import secrets
-from datetime import date
+
 
 app=FastAPI(
             title="Examen2do",
@@ -16,11 +15,17 @@ app=FastAPI(
 class huesped(BaseModel): 
     id: int
     huesped: str = Field(...,  min_length=1, max_length=5)
-    fecha_entrada: date = Field(...,  ge=date(2026, 3, 9))
-    fecha_salida: date = Field(...,  gt=fecha_entrada)
-    tipo_habitacion: str = Field(...,  min_length=1, max_length=10)
-    estancia: int = Field(..., le=7)
-# base
+    fecha_entrada: date
+    fecha_salida: date
+    tipo_habitacion: str = Field(...,  min_length=1, max_length=10, description="sencilla, doble o suite")
+    estancia: int = Field(..., le=7, description="La estancia no puede ser mayor a 7 días")
+
+    @model_validator(mode="after")
+    def validar_fechas(self):
+        if self.fecha_salida <= self.fecha_entrada:
+            raise ValueError("fecha_salida debe ser mayor a fecha_entrada")
+        return self
+# bases
 reservas=[]
 
 #seguirdad
@@ -37,7 +42,7 @@ def verificar_peticion(credenciales: HTTPBasicCredentials=Depends(seguridad)):
 
 #lista de reservas
 @app.get("/v1/reservas/", tags=["crud"]) 
-async def consultaT(userAuth:str=Depends(verificar_peticion)): 
+async def listar(userAuth:str=Depends(verificar_peticion)): 
     return{
         "status":"200",
         "total": len(reservas),
