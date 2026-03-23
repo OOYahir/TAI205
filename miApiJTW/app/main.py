@@ -3,10 +3,11 @@ from fastapi import FastAPI, status, HTTPException, Depends
 from typing import Optional
 import asyncio
 from pydantic import BaseModel,Field
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-import secrets
-
-
+#from fastapi.security import HTTPBasic, HTTPBasicCredentials
+#import secrets
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
 
 #2. Inicializacion APP
 app=FastAPI(
@@ -15,6 +16,23 @@ app=FastAPI(
             version="1.0.0"
             ) #para cambiar parametros cosas de lo de docs
 
+#config del token
+secret_key="clavesecreta"
+algoritmo="HS256"
+acceso_token_expiracion=30
+
+oauth2_scheme=OAuth2PasswordBearer(tokenUrl="token")
+
+usuarios_login={
+    "yahir":"1234"
+}
+
+def crear_token(data: dict):
+    datos=data.copy()
+    expiracion=datetime.utcnow() + timedelta(minutes=acceso_token_expiracion)
+    datos.update({"exp": expiracion})
+    token=jwt.encode(datos, secret_key, algorithm=algoritmo)
+    return token
 
 #base de datos ficticia 
 usuarios=[
@@ -31,18 +49,50 @@ class crear_usuario(BaseModel):
     edad:int= Field(..., ge=1, le=123, description="Edad validad entre 1 y 123")
 
 #4. Seguridad HTTP Basic
-seguridad= HTTPBasic()
-def verificar_peticion(credenciales: HTTPBasicCredentials=Depends(seguridad)):
-    userAuth= secrets.compare_digest(credenciales.username,"ivanisay")
-    #userAuth= secrets.compare_digest(intento, validas)
-    passAuth= secrets.compare_digest(credenciales.password,"123456")
-    if not (userAuth and passAuth):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales no autorizadas"
-        )
-    return credenciales.username
+# seguridad= HTTPBasic()
+# def verificar_peticion(credenciales: HTTPBasicCredentials=Depends(seguridad)):
+#     userAuth= secrets.compare_digest(credenciales.username,"ivanisay")
+#     #userAuth= secrets.compare_digest(intento, validas)
+#     passAuth= secrets.compare_digest(credenciales.password,"123456")
+#     if not (userAuth and passAuth):
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Credenciales no autorizadas"
+#         )
+#     return credenciales.username
 
+@app.post("/token", tags=["Seguridad"])
+async def login(form_data:OAuth2PasswordRequestForm=Depends()):
+    password=usuarios_login.get(form_data.username)
+    if password is None or password!=form_data.password:
+        raise HTTPException(
+            status_code=401,
+            detail="credenciales incorrectas"
+        )
+    token=crear_token({"sub":form_data.username})
+    return{
+        "access_token":token,
+        "token_type":"bearer"
+    }
+async def validar_token(token:str=Depends(oauth2_scheme)):
+
+    try:
+
+        datos=jwt.decode(token,secret_key,algorithms=[algoritmo])
+
+        usuario=datos.get("sub")
+
+        if usuario is None:
+            raise HTTPException(status_code=401,detail="token invalido")
+
+        return usuario
+
+    except JWTError:
+
+        raise HTTPException(
+            status_code=401,
+            detail="token invalido o expirado"
+        )
 
 #3. Endpoints
 @app.get("/", tags=['Inicio']) 
@@ -106,7 +156,7 @@ async def crea_usuario(usuario:crear_usuario):
     }
 #PUT
 @app.put("/v1/usuarios/{id}", tags=['CRUD HTTP'])
-async def actualizar_usuario(id:int, usuario:dict):
+async def actualizar_usuario(id:int, usuario:dict, user:str=Depends(validar_token)):
     for index, usr in enumerate(usuarios):
         if usr["id"] == id:
             usuarios[index] = usuario
@@ -121,13 +171,14 @@ async def actualizar_usuario(id:int, usuario:dict):
     )
 #DELETE
 @app.delete("/v1/usuarios/{id}", tags=['CRUD HTTP'])
-async def eliminar_usuario(id:int,userAuth:str=Depends(verificar_peticion)):
+#async def eliminar_usuario(id:int,userAuth:str=Depends(verificar_peticion)):
+async def eliminar_usuario(id:int, user:str=Depends(validar_token)):
     for index, usr in enumerate(usuarios):
         if usr["id"] == id:
             usuarios.pop(index)
             #del usuarios[index]
             return {
-                "mensaje": f"usuario eliminado por {userAuth}",
+                "mensaje": f"usuario eliminado correctamente",
                 "status":"200"
             }
     raise HTTPException(
